@@ -26,7 +26,7 @@ const (
 	TOKENSTORE_HEADER
 )
 
-type TokenEvent func(context.Context, *Token) bool
+type TokenEvent func(context.Context, interface{}) bool
 type ConvertValEvent func(interface{}) interface{}
 
 type AccessToken struct {
@@ -120,7 +120,7 @@ func (a *AccessToken) MustLogin() context.Handler {
 				}
 				return
 			}
-			if tk != nil && a.OnSkip != nil && a.OnSkip(ctx, tk) {
+			if tk != nil && a.OnSkip != nil && a.OnSkip(ctx, a.OnConvertVal(tk.Foo)) {
 				//app 跳过
 				//a.OnWrtieCtx(ctx, tk.Foo)
 				ctx.Values().Set("token", a.OnConvertVal(tk.Foo))
