@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
+	// "encoding/json"
 	"github.com/dgrijalva/jwt-go"
 )
 
@@ -27,25 +27,29 @@ const (
 )
 
 type TokenEvent func(context.Context, *Token) bool
+type ConvertValEvent func(interface{}) interface{}
 
 type AccessToken struct {
 	Config        *Config
 	OnMustRefresh TokenEvent
 	OnNoExists    TokenEvent
 	OnSkip        TokenEvent
+	OnConvertVal  ConvertValEvent
 	TokenStore    TokenStoreType
 }
 
 type Token struct {
 	jwt.StandardClaims
 	RefreshAt int64
-	Foo       map[string]interface{} `json:"foo"`
+	Foo       interface{} `json:"foo"`
 }
 
 //创建token
-func (a *AccessToken) SetToken(w http.ResponseWriter, CustomClaims map[string]interface{}) (string, error) {
+func (a *AccessToken) SetToken(w http.ResponseWriter, CustomClaims interface{}) (string, error) {
 	rsp := time.Now().Add(time.Minute * a.Config.ExpiresDuration) //必须刷新时间
 	exp := rsp.Add(time.Minute * a.Config.RefreshDuration)        //完全失效时间
+	//b, _ := json.Marshal(CustomClaims)
+
 	claims := Token{
 		jwt.StandardClaims{
 			ExpiresAt: exp.Unix(),
@@ -108,14 +112,18 @@ func (a *AccessToken) MustLogin() context.Handler {
 					}
 					ctx.StopExecution()
 				} else {
-					ctx.Values().Set("token", tk.Foo)
+					// a.OnWrtieCtx(ctx, tk.Foo)
+					ctx.Values().Set("token", a.OnConvertVal(tk.Foo))
+
+					// ctx.Values().Set("token", tk.Foo)
 					ctx.Next()
 				}
 				return
 			}
 			if tk != nil && a.OnSkip != nil && a.OnSkip(ctx, tk) {
 				//app 跳过
-				ctx.Values().Set("token", tk.Foo)
+				//a.OnWrtieCtx(ctx, tk.Foo)
+				ctx.Values().Set("token", a.OnConvertVal(tk.Foo))
 				ctx.Next()
 				return
 			}
@@ -195,6 +203,6 @@ func (a *AccessToken) RemoveToken(w http.ResponseWriter) error {
 }
 
 //刷新token
-func (a *AccessToken) RefreshToken(w http.ResponseWriter, CustomClaims map[string]interface{}) (string, error) {
+func (a *AccessToken) RefreshToken(w http.ResponseWriter, CustomClaims interface{}) (string, error) {
 	return a.SetToken(w, CustomClaims)
 }
